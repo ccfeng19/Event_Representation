@@ -4,10 +4,10 @@ import torch
 import tqdm
 import os
 
-from loader import Loader
-from loss import cross_entropy_loss_and_accuracy
-from models import Classifier
-from dataset import NCaltech101
+from utils.loader import Loader
+from utils.loss import cross_entropy_loss_and_accuracy
+from utils.models import Classifier
+from utils.dataset import NCaltech101
 
 
 def FLAGS():
@@ -15,8 +15,8 @@ def FLAGS():
         """Deep Learning for Events. Supply a config file.""")
 
     # can be set in config
-    parser.add_argument("--checkpoint", default="", required=True)
-    parser.add_argument("--test_dataset", default="", required=True)
+    parser.add_argument("--checkpoint", default="log/model_best.pth", required=False)
+    parser.add_argument("--test_dataset", default="/data1/chenchenfeng/N-Caltech101/testing/", required=False)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--batch_size", type=int, default=4)
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     sum_loss = 0
 
     print("Test step")
-    for events, labels in tqdm.tqdm(test_loader):
+    for events, labels in test_loader:
         with torch.no_grad():
             pred_labels, _ = model(events)
             loss, accuracy = cross_entropy_loss_and_accuracy(pred_labels, labels)

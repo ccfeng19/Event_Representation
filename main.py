@@ -21,11 +21,11 @@ def FLAGS():
     parser = argparse.ArgumentParser("""Train classifier using a learnt quantization layer.""")
 
     # training / validation dataset
-    parser.add_argument("--validation_dataset", default="", required=True)
-    parser.add_argument("--training_dataset", default="", required=True)
+    parser.add_argument("--validation_dataset", default="/data1/chenchenfeng/N-Caltech101/validation/", required=False)
+    parser.add_argument("--training_dataset", default="/data1/chenchenfeng/N-Caltech101/training/", required=False)
 
     # logging options
-    parser.add_argument("--log_dir", default="", required=True)
+    parser.add_argument("--log_dir", default="log/temp", required=False)
 
     # loader and device options
     parser.add_argument("--device", default="cuda:0")
@@ -107,7 +107,7 @@ if __name__ == '__main__':
         model = model.eval()
 
         print(f"Validation step [{i:3d}/{flags.num_epochs:3d}]")
-        for events, labels in tqdm.tqdm(validation_loader):
+        for events, labels in validation_loader:
 
             with torch.no_grad():
                 pred_labels, representation = model(events)
@@ -152,7 +152,7 @@ if __name__ == '__main__':
 
         model = model.train()
         print(f"Training step [{i:3d}/{flags.num_epochs:3d}]")
-        for events, labels in tqdm.tqdm(training_loader):
+        for events, labels in training_loader:
             optimizer.zero_grad()
 
             pred_labels, representation = model(events)

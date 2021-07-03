@@ -1,0 +1,10 @@
+nohup: ignoring input
+----------------------------
+Starting testing with 
+checkpoint: log/model_best.pth
+test_dataset: /data1/chenchenfeng/N-Caltech101/testing/
+batch_size: 4
+device: cuda:4
+----------------------------
+Test step
+Test Loss: 1.042986808566872, Test Accuracy: 0.7861238532110092

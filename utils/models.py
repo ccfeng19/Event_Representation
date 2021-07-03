@@ -77,6 +77,44 @@ class ValueLayer(nn.Module):
         gt_values[ts > 1.0 / (num_channels-1)] = 0
 
         return gt_values
+        
+
+class WarpLayer(nn.Module):
+    def __init__(self, B=4):
+        super(WarpLayer, self).__init__()
+        self.B = B
+        self.parms = nn.Parameter(torch.randn(self.B, 2), requires_grad=True)
+         
+    def forward(self, x, y, t, b, W, H):  
+        
+        optim = torch.optim.Adam(self.parameters(), lr=1e-2)          
+        
+        for _ in range(20):
+            optim.zero_grad()
+            
+            for i in range(self.B):
+                tmp_x = x[b == i] - t[b == i] * self.parms[i][0] 
+                tmp_y = y[b == i] - t[b == i] * self.parms[i][1]       
+
+                if i == 0:
+                    loss = tmp_x.var() + tmp_y.var()
+                else:
+                    loss += tmp_x.var() + tmp_y.var()
+
+            loss.backward()
+            optim.step()
+        
+        for i in range(self.B):
+            x[b == i] -= t[b == i] * self.parms[i][0]
+            y[b == i] -= t[b == i] * self.parms[i][1]
+        
+        zero = torch.zeros_like(x)
+        x = torch.where(x<0,zero,x)
+        x = torch.where(x>=239,zero,x)
+        y = torch.where(y<0,zero,y)
+        y = torch.where(y>=179,zero,y)
+
+        return x.detach(), y.detach()
 
 
 class QuantizationLayer(nn.Module):
@@ -99,25 +137,32 @@ class QuantizationLayer(nn.Module):
         # get values for each channel
         x, y, t, p, b = events.t()
 
-        # normalizing timestamps
-        for bi in range(B):
-            t[events[:,-1] == bi] /= t[events[:,-1] == bi].max()
-
         p = (p+1)/2  # maps polarity to 0, 1
 
-        idx_before_bins = x \
-                          + W * y \
-                          + 0 \
-                          + W * H * C * p \
-                          + W * H * C * 2 * b
+        # warp (x,y)
+        for bi in range(B):
+            t[events[:,-1] == bi] /= t[events[:,-1] == bi].max()  # normalizing timestamps
+            length = len(t[events[:,-1] == bi])
 
-        for i_bin in range(C):
-            values = t * self.value_layer.forward(t-i_bin/(C-1))
+            for i_bin in range(C):
+                start, end = int(i_bin / C * length), int((i_bin+1) / C * length)
+                x_b, y_b, p_b, b_b, t_b = x[events[:,-1] == bi][start:end], y[events[:,-1] == bi][start:end], p[events[:,-1] == bi][start:end], b[events[:,-1] == bi][start:end], t[events[:,-1] == bi][start:end]
 
-            # draw in voxel grid
-            idx = idx_before_bins + W * H * i_bin
-            vox.put_(idx.long(), values, accumulate=True)
+                with torch.enable_grad():
+                    device = torch.device("cuda:4")
+                    warp_layer = WarpLayer(B=1).to(device)
+                    x_b, y_b = warp_layer.forward(x_b.clone().detach(), y_b.clone().detach(), t_b.clone().detach(), b_b.clone().detach(), W, H)
+                    
+                idx = x_b \
+                    + W * y_b \
+                    + W * H * i_bin \
+                    + W * H * C * p_b \
+                    + W * H * C * 2 * b_b
 
+                values = t_b * self.value_layer.forward(t_b)
+                vox.put_(idx.long(), values, accumulate=True)
+
+        # draw in voxel grid
         vox = vox.view(-1, 2, C, H, W)
         vox = torch.cat([vox[:, 0, ...], vox[:, 1, ...]], 1)
 
@@ -162,5 +207,3 @@ class Classifier(nn.Module):
         vox_cropped = self.crop_and_resize_to_resolution(vox, self.crop_dimension)
         pred = self.classifier.forward(vox_cropped)
         return pred, vox
-
-
