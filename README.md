@@ -7,7 +7,6 @@
 - add contrast maximization of x,y before feeding t to MLP layer
 
 - divide the temporal to bins 
--  
 
 - Attention device of model WarpLayer
 
@@ -18,4 +17,3 @@
 - Batch = 4
 - warp_epoch = 20
 - dataset = N-Caltech101
-- Accuracy = 
